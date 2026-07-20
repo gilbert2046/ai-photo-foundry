@@ -48,4 +48,10 @@ Deleting or replacing the app does not automatically delete this data.
 
 ## Screenshots
 
-Product screenshots will be added separately. Before publishing screenshots, verify that they contain no private prompts, images, notes, project names, API keys, or account information.
+### Photo wall and projects
+
+![Photo Foundry photo wall and project organization](docs/screenshots/photo-wall.png)
+
+### Prompt workspace
+
+![Photo Foundry prompt workspace with model and reference image controls](docs/screenshots/prompt-workspace.png)
