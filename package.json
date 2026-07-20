@@ -1,0 +1,48 @@
+{
+  "name": "photo-foundry",
+  "version": "1.0.0",
+  "description": "A private, local-first multi-model image generation workspace for macOS",
+  "main": "electron-main.cjs",
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "start:web": "node server.js",
+    "build:mac": "electron-builder --mac dir",
+    "dist:mac": "electron-builder --mac dmg"
+  },
+  "dependencies": {
+    "@google/genai": "^1.16.0",
+    "dotenv": "^16.4.7",
+    "openai": "^6.17.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "app.photofoundry.desktop",
+    "productName": "Photo Foundry",
+    "asar": true,
+    "files": [
+      "public/**/*",
+      "server.js",
+      "electron-main.cjs",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "target": [
+        {
+          "target": "dir",
+          "arch": ["arm64"]
+        }
+      ],
+      "identity": null
+    }
+  }
+}

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Photo Foundry</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <img class="logo" src="/app-icon.svg" alt="Photo Foundry logo" />
+          <div>
+            <div class="title">Photo Foundry</div>
+            <div class="subtitle">A private multi-model image workspace</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button id="usageToggle" class="usage-toggle" type="button" title="Show detailed usage">
+            <div id="usageSummary" class="usage-summary" title="Successful generations only">
+              <div id="usagePie" class="usage-pie" aria-hidden="true"></div>
+              <div id="usageText" class="usage-text">Total $0.0000</div>
+            </div>
+            <div id="tokenSummary" class="token-summary"></div>
+          </button>
+          <button id="trashToggle" class="top-icon-btn trash-heart" type="button" title="Trash">
+            <span aria-hidden="true">🗑</span>
+          </button>
+          <label class="liked-heart" title="Liked only">
+            <input id="likedOnly" type="checkbox" />
+            <span aria-hidden="true"></span>
+          </label>
+        </div>
+        <section id="memoBoard" class="memo-board">
+            <div class="memo-board-head">
+              <div class="memo-board-title">Notes</div>
+                          </div>
+            <div id="memoDisplay" class="memo-display">Write something here...</div>
+            <textarea id="memoInput" class="memo-input" rows="4" placeholder="Write your notes here..." hidden></textarea>
+        </section>
+      </header>
+      <div id="pendingBar" class="pending-bar"></div>
+
+      <main class="content">
+        <section id="controlPanel" class="panel collapsed">
+          <div class="bubble-bar">
+            <div class="bubble-text"><span>vision 一波</span></div>
+          </div>
+
+          <div class="field">
+            <label for="model">Model</label>
+            <select id="model">
+              <option value="gemini-2.5-flash-image">Nano Banana (Gemini 2.5 Flash Image)</option>
+              <option value="gemini-3-pro-image-preview">Nano Banana Pro (Gemini 3 Pro Image Preview)</option>
+              <option value="gemini-3.1-flash-image-preview">Nano Banana 2</option>
+              <option value="gpt-image-2">GPT Image 2</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="imageSize">Image size</label>
+            <select id="imageSize">
+              <option value="">Auto</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="aspectRatio">Aspect ratio</label>
+            <select id="aspectRatio">
+              <option value="1:1">1:1</option>
+              <option value="3:4">3:4</option>
+              <option value="4:3">4:3</option>
+              <option value="9:16">9:16</option>
+              <option value="16:9">16:9</option>
+              <option value="2:3">2:3</option>
+              <option value="3:2">3:2</option>
+              <option value="4:5">4:5</option>
+              <option value="5:4">5:4</option>
+              <option value="21:9">21:9</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label id="clarityLabel" for="clarity">Clarity</label>
+            <select id="clarity">
+              <option value="">Auto</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="apiKey">Google API key (optional)</label>
+            <input
+              id="apiKey"
+              type="password"
+              placeholder="Paste key here if .env is not picked up"
+            />
+          </div>
+
+          <div class="field">
+            <label for="openAiKey">OpenAI API key (optional)</label>
+            <input
+              id="openAiKey"
+              type="password"
+              placeholder="Paste your OpenAI key here for GPT Image 2"
+            />
+          </div>
+
+          <div class="field">
+            <label for="modelOverride">Model ID (override)</label>
+            <input
+              id="modelOverride"
+              type="text"
+              placeholder="Paste a Google model ID (optional)"
+            />
+          </div>
+
+          <div class="field wide">
+            <label for="prompt">Prompt</label>
+            <textarea id="prompt" rows="4" placeholder="Describe the scene you want..."></textarea>
+          </div>
+
+          <div class="field wide">
+            <label>Selected prompt images</label>
+            <div class="selected-toolbar">
+              <span class="hint">Drag to reorder. Order = image # in prompt.</span>
+              <div class="selected-toolbar-actions">
+                <input id="imagePrompt" class="hidden-file-input" type="file" accept="image/*" multiple />
+                <label for="imagePrompt" class="ghost small cta">Select images</label>
+                <button id="removeSelectedBtn" class="ghost small">Remove selected</button>
+              </div>
+            </div>
+            <div id="imagePreview" class="preview compact">No image selected</div>
+            <div id="selectedList" class="selected-list"></div>
+          </div>
+
+          <div class="actions">
+            <button id="clearBtn" class="ghost">Clear results</button>
+            <button id="generateBtn" class="primary">嘛哩嘛哩哄</button>
+            <div id="status" class="status">Ready.</div>
+          </div>
+        </section>
+
+        <section class="gallery">
+          <div id="projectBar" class="project-bar"></div>
+          <div id="results" class="grid"></div>
+        </section>
+      </main>
+    </div>
+    <div id="meteorOverlay" class="meteor-overlay" aria-hidden="true"></div>
+
+    <template id="cardTemplate">
+      <article class="card">
+        <div class="card-head">
+          <div class="model"></div>
+          <div class="card-actions">
+            <button class="select" aria-label="Select for prompt">Select</button>
+            <button class="like" aria-label="Like">
+              <span class="heart">♥</span>
+            </button>
+          </div>
+        </div>
+        <img class="image" alt="Generated result" />
+        <button class="edit edit-watermark" aria-label="Edit prompt from this result">Edit</button>
+      </article>
+    </template>
+
+    <div id="detailModal" class="detail-modal" hidden>
+      <div id="detailBackdrop" class="detail-backdrop"></div>
+      <div class="detail-layout">
+        <div class="detail-canvas">
+          <img id="detailImage" alt="Result preview" />
+        </div>
+        <aside class="detail-panel">
+          <div class="detail-header">
+            <div>
+              <div class="detail-title">Wizard Details</div>
+              <div id="detailModel" class="detail-model"></div>
+            </div>
+            <div class="detail-nav">
+              <button id="detailPrev" class="ghost small icon-only" aria-label="Previous generation">←</button>
+              <button id="detailNext" class="ghost small icon-only" aria-label="Next generation">→</button>
+              <button id="detailDelete" class="ghost small danger icon-with-label detail-action" aria-label="Trash generation"><span>Trash</span></button>
+              <button id="detailClose" class="ghost small icon-only" aria-label="Close detail">↩</button>
+            </div>
+          </div>
+          <div id="detailIndex" class="status"></div>
+          <div class="detail-group">
+            <label>Prompt</label>
+            <div id="detailPrompt" class="detail-prompt"></div>
+            <button id="copyPromptBtn" class="ghost">Copy prompt</button>
+          </div>
+          <div class="detail-group">
+            <label>Information</label>
+            <div id="detailInfo" class="detail-info"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="usageModal" class="usage-modal" hidden>
+      <div id="usageModalBackdrop" class="usage-modal-backdrop"></div>
+      <div class="usage-modal-panel">
+        <div class="usage-modal-header">
+          <div>
+            <div class="usage-modal-title">Usage details</div>
+            <div id="usageModalSubtitle" class="usage-modal-subtitle">Successful generations only</div>
+          </div>
+          <button id="usageModalClose" class="ghost small" aria-label="Close usage details">✕</button>
+        </div>
+        <div id="usageModalBody" class="usage-modal-body"></div>
+      </div>
+    </div>
+
+    <div id="trashModal" class="usage-modal" hidden>
+      <div id="trashModalBackdrop" class="usage-modal-backdrop"></div>
+      <div class="usage-modal-panel trash-modal-panel">
+        <div class="usage-modal-header">
+          <div>
+            <div class="usage-modal-title">Trash</div>
+            <div id="trashModalSubtitle" class="usage-modal-subtitle">Trashed images stay here until you restore or clear them.</div>
+          </div>
+          <div class="detail-nav">
+            <button id="trashBatchBtn" class="ghost small icon-with-label" aria-label="Batch select in trash"><span aria-hidden="true">◌</span><span>Batch select</span></button>
+            <button id="trashRestoreBtn" class="ghost small icon-with-label" aria-label="Restore selected trash"><span aria-hidden="true">↺</span><span>Restore</span></button>
+            <button id="trashClearBtn" class="ghost small danger icon-with-label" aria-label="Clear trash"><span aria-hidden="true">🗑</span><span>Clear</span></button>
+            <button id="trashModalClose" class="ghost small icon-only" aria-label="Close trash">↩</button>
+          </div>
+        </div>
+        <div id="trashModalBody" class="usage-modal-body"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
