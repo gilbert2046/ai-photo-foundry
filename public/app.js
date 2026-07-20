@@ -1180,8 +1180,11 @@ function triggerMeteorShower() {
   meteorOverlay.classList.remove('active');
   void meteorOverlay.offsetWidth;
   meteorOverlay.classList.add('active');
-  const meteorCount = 26;
-  const sparkleCount = 22;
+  const viewportWidth = meteorOverlay.clientWidth || window.innerWidth || 1280;
+  const viewportHeight = meteorOverlay.clientHeight || window.innerHeight || 800;
+  const viewportArea = viewportWidth * viewportHeight;
+  const meteorCount = Math.max(12, Math.min(24, Math.round(viewportArea / 72000)));
+  const sparkleCount = Math.max(10, Math.min(20, Math.round(viewportArea / 90000)));
 
   for (let index = 0; index < sparkleCount; index += 1) {
     const sparkle = document.createElement('span');
@@ -1196,11 +1199,29 @@ function triggerMeteorShower() {
   for (let index = 0; index < meteorCount; index += 1) {
     const meteor = document.createElement('span');
     meteor.className = 'meteor';
-    meteor.style.left = `${-8 + Math.random() * 68}%`;
-    meteor.style.top = `${-8 - Math.random() * 20}%`;
+    const meteorLength = Math.max(
+      110,
+      Math.min(280, viewportWidth * (0.12 + Math.random() * 0.07))
+    );
+    const startLeft = -meteorLength * 0.72 + Math.random() * viewportWidth * 0.47;
+    const startTop = -meteorLength * 0.12 + Math.random() * viewportHeight * 0.2;
+    const startHeadX = startLeft + meteorLength;
+    const endHeadX = Math.max(
+      startHeadX + viewportWidth * 0.28,
+      viewportWidth * (0.68 + Math.random() * 0.27)
+    );
+    const endHeadY = viewportHeight * (0.5 + Math.random() * 0.38);
+    meteor.style.left = `${startLeft.toFixed(1)}px`;
+    meteor.style.top = `${startTop.toFixed(1)}px`;
     meteor.style.animationDelay = `${(Math.random() * 0.6).toFixed(2)}s`;
-    meteor.style.animationDuration = `${1 + Math.random() * 1.15}s`;
-    meteor.style.setProperty('--meteor-scale', `${1 + Math.random() * 1.6}`);
+    meteor.style.animationDuration = `${1.15 + Math.random() * 0.9}s`;
+    meteor.style.setProperty('--meteor-length', `${meteorLength.toFixed(1)}px`);
+    meteor.style.setProperty('--meteor-scale', `${(0.72 + Math.random() * 0.38).toFixed(2)}`);
+    meteor.style.setProperty('--meteor-angle', `${(-24 - Math.random() * 8).toFixed(1)}deg`);
+    meteor.style.setProperty('--meteor-start-x', `${(-meteorLength * 0.16).toFixed(1)}px`);
+    meteor.style.setProperty('--meteor-start-y', `${(-viewportHeight * 0.035).toFixed(1)}px`);
+    meteor.style.setProperty('--meteor-end-x', `${(endHeadX - startHeadX).toFixed(1)}px`);
+    meteor.style.setProperty('--meteor-end-y', `${(endHeadY - startTop).toFixed(1)}px`);
     meteorOverlay.appendChild(meteor);
   }
 
