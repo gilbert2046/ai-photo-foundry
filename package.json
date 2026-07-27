@@ -35,6 +35,7 @@
       "output": "dist"
     },
     "mac": {
+      "icon": "public/photo-foundry-logo.png",
       "category": "public.app-category.graphics-design",
       "target": [
         {

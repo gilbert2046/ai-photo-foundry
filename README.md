@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/photo-foundry-logo.png" width="140" alt="Photo Foundry logo">
+</p>
+
 # Photo Foundry
 
 Photo Foundry is a local-first macOS workspace for generating and organizing images across multiple AI models. It includes multi-reference prompts, generation history, projects, favorites, trash/restore, model cost tracking, and a responsive photo wall.

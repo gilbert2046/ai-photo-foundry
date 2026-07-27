@@ -51,6 +51,7 @@ const detailLayout = document.querySelector('.detail-layout');
 const detailClose = document.getElementById('detailClose');
 const detailPrev = document.getElementById('detailPrev');
 const detailNext = document.getElementById('detailNext');
+const detailDownload = document.getElementById('detailDownload');
 const detailDelete = document.getElementById('detailDelete');
 const detailIndex = document.getElementById('detailIndex');
 const detailModel = document.getElementById('detailModel');
@@ -1427,6 +1428,29 @@ function getCurrentDetailItem() {
   const visible = detailScope === 'trash' ? trashItems : getVisibleResults();
   if (detailCursor < 0 || detailCursor >= visible.length) return null;
   return visible[detailCursor];
+}
+
+function downloadCurrentDetailImage() {
+  const current = getCurrentDetailItem();
+  if (!current) return;
+  const record = detailScope === 'trash' ? current.original || {} : current;
+  const imageSrc = resultImageSrc(record) || detailImage?.src || '';
+  if (!imageSrc) {
+    setStatus('No image available to download.');
+    return;
+  }
+
+  const sourceExtension = imageSrc.match(/\.(png|jpe?g|webp)(?:[?#]|$)/i)?.[1]?.toLowerCase();
+  const extension = sourceExtension === 'jpeg' ? 'jpg' : sourceExtension || 'png';
+  const safeModel = String(record.model || 'image').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '');
+  const filename = `photo-foundry-${safeModel || 'image'}-${record.id || Date.now()}.${extension}`;
+  const link = document.createElement('a');
+  link.href = imageSrc;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setStatus(`Downloading ${filename}…`);
 }
 
 function getBase64Payload(dataUrl) {
@@ -3084,6 +3108,9 @@ if (detailPrev) {
 }
 if (detailNext) {
   detailNext.addEventListener('click', () => moveDetail(1));
+}
+if (detailDownload) {
+  detailDownload.addEventListener('click', downloadCurrentDetailImage);
 }
 if (detailDelete) {
   detailDelete.addEventListener('click', async () => {
