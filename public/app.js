@@ -21,6 +21,7 @@ const projectBar = document.getElementById('projectBar');
 const resultsEl = document.getElementById('results');
 const logoStar = document.querySelector('.logo');
 const brandEl = document.querySelector('.brand');
+const brandTitle = document.getElementById('brandTitle');
 const meteorOverlay = document.getElementById('meteorOverlay');
 const memoBoard = document.getElementById('memoBoard');
 const memoDisplay = document.getElementById('memoDisplay');
@@ -64,6 +65,8 @@ const LIKED_KEY = 'image-aggregator-liked-v1';
 const API_KEY_STORAGE = 'image-aggregator-google-api-key-v1';
 const OPENAI_API_KEY_STORAGE = 'image-aggregator-openai-api-key-v1';
 const MEMO_STORAGE_KEY = 'image-aggregator-memo-v1';
+const BRAND_TITLE_STORAGE_KEY = 'photo-foundry-brand-title-v1';
+const DEFAULT_BRAND_TITLE = 'Photo Foundry';
 const DRAFT_STORAGE_KEY = 'image-aggregator-draft-v1';
 const LEGACY_RESULTS_KEY = 'image-aggregator-results-v1';
 const PROJECTS_STORAGE_KEY = 'image-aggregator-projects-v1';
@@ -182,6 +185,30 @@ function isOpenAiModel(modelId) {
 
 function getProviderLabel(modelId) {
   return MODEL_BILLING[modelId]?.provider === 'openai' ? 'OpenAI' : 'Gemini';
+}
+
+function loadBrandTitle() {
+  try {
+    return localStorage.getItem(BRAND_TITLE_STORAGE_KEY) || DEFAULT_BRAND_TITLE;
+  } catch {
+    return DEFAULT_BRAND_TITLE;
+  }
+}
+
+function applyBrandTitle(value) {
+  const title = String(value || '').trim().replace(/\s+/g, ' ').slice(0, 48) || DEFAULT_BRAND_TITLE;
+  if (brandTitle) brandTitle.textContent = title;
+  document.title = title;
+  return title;
+}
+
+function saveBrandTitle(value) {
+  const title = applyBrandTitle(value);
+  try {
+    localStorage.setItem(BRAND_TITLE_STORAGE_KEY, title);
+  } catch {
+    // Keep the current-session title even if local storage is unavailable.
+  }
 }
 
 function loadMemoText() {
@@ -2953,6 +2980,34 @@ if (memoInput) {
     }
   });
 }
+if (brandTitle) {
+  brandTitle.addEventListener('focus', () => {
+    brandTitle.dataset.originalTitle = brandTitle.textContent || DEFAULT_BRAND_TITLE;
+  });
+  brandTitle.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      brandTitle.blur();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      brandTitle.textContent = brandTitle.dataset.originalTitle || loadBrandTitle();
+      brandTitle.dataset.cancelRename = 'true';
+      brandTitle.blur();
+    }
+  });
+  brandTitle.addEventListener('blur', () => {
+    if (brandTitle.dataset.cancelRename === 'true') {
+      delete brandTitle.dataset.cancelRename;
+      applyBrandTitle(brandTitle.textContent);
+      return;
+    }
+    saveBrandTitle(brandTitle.textContent);
+    setStatus(`Product name changed to ${brandTitle.textContent}.`);
+  });
+}
+
 document.addEventListener('pointerdown', (event) => {
   if (!memoEditing || !memoBoard) return;
   if (memoBoard.contains(event.target)) return;
@@ -3191,6 +3246,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 async function init() {
+  applyBrandTitle(loadBrandTitle());
   try {
     await syncProjectStateFromServer();
     await syncUsageLedgerFromServer();

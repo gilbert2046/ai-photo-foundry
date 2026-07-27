@@ -214,6 +214,30 @@ html.desktop-app .topbar .memo-board {
   letter-spacing: 0.02em;
 }
 
+.editable-title {
+  width: fit-content;
+  max-width: min(320px, 38vw);
+  padding: 2px 5px;
+  margin: -2px -5px;
+  border-radius: 7px;
+  cursor: text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.editable-title:hover {
+  background: rgba(120, 185, 255, 0.09);
+}
+
+.editable-title:focus {
+  outline: none;
+  overflow: visible;
+  background: rgba(10, 20, 36, 0.9);
+  box-shadow: 0 0 0 1px rgba(120, 185, 255, 0.58), 0 0 20px rgba(72, 154, 255, 0.18);
+}
+
 .subtitle {
   color: var(--muted);
   font-size: 0.76rem;
