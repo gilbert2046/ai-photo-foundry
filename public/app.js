@@ -57,6 +57,9 @@ const detailDelete = document.getElementById('detailDelete');
 const detailIndex = document.getElementById('detailIndex');
 const detailModel = document.getElementById('detailModel');
 const detailImage = document.getElementById('detailImage');
+const imageZoomModal = document.getElementById('imageZoomModal');
+const imageZoomImage = document.getElementById('imageZoomImage');
+const imageZoomLevel = document.getElementById('imageZoomLevel');
 const detailPrompt = document.getElementById('detailPrompt');
 const detailInfo = document.getElementById('detailInfo');
 const copyPromptBtn = document.getElementById('copyPromptBtn');
@@ -169,6 +172,7 @@ let taskSeq = 0;
 const activeTasks = new Map();
 let detailCursor = -1;
 let detailScope = 'results';
+let imageZoomScale = 1;
 let batchProjectMode = false;
 let batchSelectedResultIds = new Set();
 let trashItems = [];
@@ -1436,7 +1440,39 @@ function openDetailByIndex(index, scope = 'results') {
   detailModal.hidden = false;
 }
 
+function updateImageZoom() {
+  if (!imageZoomImage) return;
+  imageZoomImage.style.setProperty('--image-zoom-scale', String(imageZoomScale));
+  if (imageZoomLevel) imageZoomLevel.textContent = `${Math.round(imageZoomScale * 100)}%`;
+  imageZoomImage.style.cursor = imageZoomScale > 1 ? 'zoom-out' : 'zoom-in';
+}
+
+function openImageZoom() {
+  if (!imageZoomModal || !imageZoomImage || !detailImage?.src) return;
+  imageZoomScale = 1;
+  imageZoomImage.src = detailImage.currentSrc || detailImage.src;
+  imageZoomImage.alt = detailImage.alt || 'Fullscreen result preview';
+  updateImageZoom();
+  imageZoomModal.hidden = false;
+}
+
+function closeImageZoom() {
+  if (!imageZoomModal) return;
+  imageZoomModal.hidden = true;
+  imageZoomScale = 1;
+  updateImageZoom();
+}
+
+function handleImageZoomWheel(event) {
+  if (!imageZoomModal || imageZoomModal.hidden) return;
+  event.preventDefault();
+  const factor = Math.exp(-event.deltaY * 0.0015);
+  imageZoomScale = Math.min(6, Math.max(0.5, imageZoomScale * factor));
+  updateImageZoom();
+}
+
 function closeDetail() {
+  closeImageZoom();
   if (detailModal) {
     detailModal.hidden = true;
     detailModal.style.zIndex = '';
@@ -3148,6 +3184,20 @@ if (trashRestoreBtn) {
   });
 }
 
+if (detailImage) {
+  detailImage.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openImageZoom();
+  });
+}
+if (imageZoomImage) {
+  imageZoomImage.addEventListener('click', (event) => event.stopPropagation());
+}
+if (imageZoomModal) {
+  imageZoomModal.addEventListener('click', closeImageZoom);
+  imageZoomModal.addEventListener('wheel', handleImageZoomWheel, { passive: false });
+}
+
 detailClose.addEventListener('click', closeDetail);
 detailBackdrop.addEventListener('click', closeDetail);
 if (detailModal && detailLayout) {
@@ -3224,6 +3274,10 @@ if (detailDelete) {
   });
 }
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && imageZoomModal && !imageZoomModal.hidden) {
+    closeImageZoom();
+    return;
+  }
   if (event.key === 'Escape' && trashModal && !trashModal.hidden) {
     closeTrashModal();
     return;

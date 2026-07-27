@@ -1615,6 +1615,78 @@ textarea.drop-active {
   object-fit: contain;
 }
 
+.detail-canvas img {
+  cursor: zoom-in;
+}
+
+.image-zoom-modal[hidden] {
+  display: none;
+}
+
+.image-zoom-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: zoom-out;
+  animation: imageZoomFadeIn 180ms ease-out;
+}
+
+.image-zoom-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 5, 10, 0.86);
+  backdrop-filter: blur(20px) saturate(0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(0.72);
+}
+
+.image-zoom-stage {
+  position: absolute;
+  inset: 24px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.image-zoom-stage img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+  transform: scale(var(--image-zoom-scale, 1));
+  transform-origin: center;
+  transition: transform 80ms ease-out;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+}
+
+.image-zoom-level {
+  position: absolute;
+  right: 22px;
+  bottom: 20px;
+  padding: 7px 11px;
+  border: 1px solid rgba(168, 206, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(7, 13, 23, 0.72);
+  color: #dcecff;
+  font: 600 0.76rem/1 'Manrope', 'Satoshi', sans-serif;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+}
+
+@keyframes imageZoomFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .detail-panel {
   background: #0f1622;
   border: 1px solid var(--border);
