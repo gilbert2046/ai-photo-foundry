@@ -2731,26 +2731,24 @@ modelOverride.addEventListener('input', () => {
 likedOnlyToggle.addEventListener('change', render);
 
 clearBtn.addEventListener('click', () => {
-  refreshResultsFromServer()
-    .then(() => {
-      setStatus('History synced from server.');
-      render();
-    })
-    .catch((err) => {
-      setStatus(err.message || 'Failed to sync history.');
-    });
+  promptInput.value = '';
+  promptImages = [];
+  if (imageInput) imageInput.value = '';
+  saveDraft();
+  renderSelected();
+  setStatus('Prompt and reference images cleared. Model settings kept.');
 });
 
 removeSelectedBtn.addEventListener('click', () => {
-  const checkedIds = new Set(promptImages.filter((img) => img.checked).map((img) => img.id));
-  if (checkedIds.size === 0) {
-    setStatus('Pick thumbnails first, then Remove selected.');
+  if (promptImages.length === 0) {
+    setStatus('No reference images to remove.');
     return;
   }
-  promptImages = promptImages.filter((img) => !checkedIds.has(img.id));
+  promptImages = [];
+  if (imageInput) imageInput.value = '';
   saveDraft();
   renderSelected();
-  render();
+  setStatus('All reference images removed.');
 });
 
 async function generate() {
