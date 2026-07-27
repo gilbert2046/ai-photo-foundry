@@ -1730,6 +1730,27 @@ textarea.drop-active {
   gap: 8px;
 }
 
+.detail-prompt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.detail-prompt-actions .ghost {
+  width: 100%;
+}
+
+.detail-edit-image {
+  border-color: rgba(140, 199, 255, 0.48);
+  background: rgba(58, 105, 166, 0.2);
+  color: #dceeff;
+}
+
+.detail-edit-image:hover {
+  border-color: rgba(140, 199, 255, 0.8);
+  background: rgba(76, 137, 214, 0.3);
+}
+
 .detail-prompt {
   background: #111823;
   border: 1px solid var(--border);

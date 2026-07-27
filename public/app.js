@@ -63,6 +63,7 @@ const imageZoomLevel = document.getElementById('imageZoomLevel');
 const detailPrompt = document.getElementById('detailPrompt');
 const detailInfo = document.getElementById('detailInfo');
 const copyPromptBtn = document.getElementById('copyPromptBtn');
+const editThisImageBtn = document.getElementById('editThisImageBtn');
 
 const LIKED_KEY = 'image-aggregator-liked-v1';
 const API_KEY_STORAGE = 'image-aggregator-google-api-key-v1';
@@ -1437,6 +1438,9 @@ function openDetailByIndex(index, scope = 'results') {
       setStatus('Failed to copy prompt.');
     }
   };
+  if (editThisImageBtn) {
+    editThisImageBtn.onclick = editCurrentDetailImage;
+  }
   detailModal.hidden = false;
 }
 
@@ -1514,6 +1518,36 @@ function downloadCurrentDetailImage() {
   link.click();
   link.remove();
   setStatus(`Downloading ${filename}…`);
+}
+
+async function editCurrentDetailImage() {
+  const current = getCurrentDetailItem();
+  if (!current) return;
+  const record = detailScope === 'trash' ? current.original || {} : current;
+
+  try {
+    const dataUrl = await ensureResultDataUrl(record);
+    const payload = dataUrl ? getBase64Payload(dataUrl) : null;
+    if (!dataUrl || !payload) throw new Error('Could not load this image as a reference.');
+
+    promptInput.value = '';
+    promptImages = [
+      makePromptImage({
+        dataUrl,
+        mimeType: payload.mimeType,
+        source: 'result',
+        resultId: record.id || null,
+      }),
+    ];
+    if (imageInput) imageInput.value = '';
+    saveDraft();
+    renderSelected();
+    closeDetail();
+    openPromptWorkspace();
+    setStatus('Image added as reference #1. Write a new prompt to edit it.');
+  } catch (error) {
+    setStatus(error.message || 'Could not prepare this image for editing.');
+  }
 }
 
 function getBase64Payload(dataUrl) {
