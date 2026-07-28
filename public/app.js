@@ -1064,7 +1064,7 @@ function makeUsageEntry({
   };
 }
 
-function trackSuccessfulGeneration({ requestedModel, usage, result }) {
+function trackSuccessfulGeneration({ requestedModel, usage, result, estimatedCost = null }) {
   const modelId = normalizeBillingModelId(requestedModel);
   const entry = makeUsageEntry({
     createdAt: result?.createdAt || new Date().toISOString(),
@@ -1074,6 +1074,7 @@ function trackSuccessfulGeneration({ requestedModel, usage, result }) {
     height: result?.height || 0,
     clarity: result?.settings?.clarity || '',
     usage,
+    cost: Number.isFinite(estimatedCost) ? estimatedCost : null,
     source: 'live',
   });
   usageLedger.entries.push(entry);
@@ -3181,6 +3182,8 @@ async function generate() {
   const aspectRatio = aspectRatioSelect.value;
   const imageSize = imageSizeSelect.value;
   const clarity = claritySelect.value;
+  // Freeze the visible pre-generation estimate so concurrent jobs keep their own price.
+  const generationEstimateSnapshot = getCurrentGenerationEstimate();
 
   if (!prompt) {
     setStatus('Please enter a prompt.');
@@ -3306,6 +3309,7 @@ async function generate() {
       requestedModel: persistedResult.requestedModel || model,
       usage: persistedResult.usage || data.usage || null,
       result: persistedResult,
+      estimatedCost: generationEstimateSnapshot.total,
     });
     await refreshResultsFromServer();
     const likedOnlyWasOn = likedOnlyToggle.checked;
