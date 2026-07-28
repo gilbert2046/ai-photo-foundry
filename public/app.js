@@ -148,9 +148,17 @@ const IMAGE_SIZE_OPTIONS_BY_MODEL = {
     { label: '4K', value: '4K' },
   ],
   'gpt-image-2': [
-    { label: '1024×1024', value: '1024x1024' },
-    { label: '1536×1024', value: '1536x1024' },
-    { label: '1024×1536', value: '1024x1536' },
+    { label: '1K Square · 1024×1024', value: '1024x1024' },
+    { label: '1K Landscape · 1536×1024', value: '1536x1024' },
+    { label: '1K Portrait · 1024×1536', value: '1024x1536' },
+    { label: '2K Square · 2048×2048', value: '2048x2048' },
+    { label: '2K Wide · 2048×1152', value: '2048x1152' },
+    { label: '2K Tall · 1152×2048', value: '1152x2048' },
+    { label: '2K Landscape · 2048×1360', value: '2048x1360' },
+    { label: '2K Portrait · 1360×2048', value: '1360x2048' },
+    { label: '4K Square · 2880×2880', value: '2880x2880' },
+    { label: '4K Wide · 3840×2160', value: '3840x2160' },
+    { label: '4K Tall · 2160×3840', value: '2160x3840' },
   ],
 };
 const DEFAULT_MODEL_ID = 'gpt-image-2';
@@ -306,9 +314,7 @@ function getActiveModelId() {
 
 function getImageSizeLabel(value) {
   if (value === '512') return '0.5K';
-  if (value === '1024x1024') return '1024×1024';
-  if (value === '1536x1024') return '1536×1024';
-  if (value === '1024x1536') return '1024×1536';
+  if (/^\d+x\d+$/.test(value || '')) return value.replace('x', '×');
   return value || '';
 }
 
@@ -340,7 +346,16 @@ function updateModelSpecificControls() {
     aspectRatioSelect.disabled = isOpenAi;
     if (isOpenAi) {
       const size = imageSizeSelect.value || DEFAULT_IMAGE_SIZE_BY_MODEL[modelId] || '1024x1024';
-      aspectRatioSelect.value = size === '1536x1024' ? '3:2' : size === '1024x1536' ? '2:3' : '1:1';
+      const [width, height] = size.split('x').map(Number);
+      if (width && height) {
+        const ratio = width / height;
+        const closest = [...aspectRatioSelect.options].reduce((best, option) => {
+          const [rw, rh] = option.value.split(':').map(Number);
+          const distance = Math.abs(ratio - rw / rh);
+          return !best || distance < best.distance ? { value: option.value, distance } : best;
+        }, null);
+        if (closest) aspectRatioSelect.value = closest.value;
+      }
     }
   }
 }

@@ -361,8 +361,21 @@ function getMimeType(filePath) {
 }
 
 function getOpenAiSizeFromOptions(imageSize, aspectRatio) {
-  if (imageSize === '1024x1024' || imageSize === '1536x1024' || imageSize === '1024x1536') {
-    return imageSize;
+  const match = /^(\d+)x(\d+)$/.exec(String(imageSize || ''));
+  if (match) {
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    const longEdge = Math.max(width, height);
+    const shortEdge = Math.min(width, height);
+    const pixels = width * height;
+    const valid =
+      width % 16 === 0 &&
+      height % 16 === 0 &&
+      longEdge <= 3840 &&
+      longEdge / shortEdge <= 3 &&
+      pixels >= 655360 &&
+      pixels <= 8294400;
+    if (valid) return `${width}x${height}`;
   }
   if (aspectRatio === '2:3' || aspectRatio === '9:16') return '1024x1536';
   if (aspectRatio === '3:2' || aspectRatio === '16:9' || aspectRatio === '21:9') return '1536x1024';
