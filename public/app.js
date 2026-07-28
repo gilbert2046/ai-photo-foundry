@@ -174,6 +174,11 @@ const activeTasks = new Map();
 let detailCursor = -1;
 let detailScope = 'results';
 let imageZoomScale = 1;
+let imageZoomPanX = 0;
+let imageZoomPanY = 0;
+let imageZoomDragging = false;
+let imageZoomPointerX = 0;
+let imageZoomPointerY = 0;
 let batchProjectMode = false;
 let batchSelectedResultIds = new Set();
 let trashItems = [];
@@ -1444,34 +1449,115 @@ function openDetailByIndex(index, scope = 'results') {
   detailModal.hidden = false;
 }
 
+function clampImageZoomPan() {
+  if (!imageZoomImage || imageZoomScale <= 1) {
+    imageZoomPanX = 0;
+    imageZoomPanY = 0;
+    return;
+  }
+  const maxX = Math.max(0, (imageZoomImage.clientWidth * (imageZoomScale - 1)) / 2);
+  const maxY = Math.max(0, (imageZoomImage.clientHeight * (imageZoomScale - 1)) / 2);
+  imageZoomPanX = Math.min(maxX, Math.max(-maxX, imageZoomPanX));
+  imageZoomPanY = Math.min(maxY, Math.max(-maxY, imageZoomPanY));
+}
+
 function updateImageZoom() {
   if (!imageZoomImage) return;
+  clampImageZoomPan();
   imageZoomImage.style.setProperty('--image-zoom-scale', String(imageZoomScale));
+  imageZoomImage.style.setProperty('--image-zoom-pan-x', `${imageZoomPanX}px`);
+  imageZoomImage.style.setProperty('--image-zoom-pan-y', `${imageZoomPanY}px`);
   if (imageZoomLevel) imageZoomLevel.textContent = `${Math.round(imageZoomScale * 100)}%`;
-  imageZoomImage.style.cursor = imageZoomScale > 1 ? 'zoom-out' : 'zoom-in';
+  imageZoomImage.style.cursor = imageZoomScale > 1 ? (imageZoomDragging ? 'grabbing' : 'grab') : 'zoom-in';
+}
+
+function resetImageZoomView() {
+  imageZoomScale = 1;
+  imageZoomPanX = 0;
+  imageZoomPanY = 0;
+  imageZoomDragging = false;
+  imageZoomImage?.classList.remove('is-dragging');
+  updateImageZoom();
+}
+
+function syncZoomImageFromDetail() {
+  if (!imageZoomImage || !detailImage?.src) return;
+  imageZoomImage.src = detailImage.currentSrc || detailImage.src;
+  imageZoomImage.alt = detailImage.alt || 'Fullscreen result preview';
 }
 
 function openImageZoom() {
   if (!imageZoomModal || !imageZoomImage || !detailImage?.src) return;
-  imageZoomScale = 1;
-  imageZoomImage.src = detailImage.currentSrc || detailImage.src;
-  imageZoomImage.alt = detailImage.alt || 'Fullscreen result preview';
-  updateImageZoom();
+  resetImageZoomView();
+  syncZoomImageFromDetail();
   imageZoomModal.hidden = false;
 }
 
 function closeImageZoom() {
   if (!imageZoomModal) return;
   imageZoomModal.hidden = true;
-  imageZoomScale = 1;
-  updateImageZoom();
+  resetImageZoomView();
+}
+
+function moveImageZoom(step) {
+  if (!imageZoomModal || imageZoomModal.hidden) return;
+  const visible = detailScope === 'trash' ? trashItems : getVisibleResults();
+  const nextIndex = detailCursor + step;
+  if (nextIndex < 0 || nextIndex >= visible.length) return;
+  const scope = detailScope;
+  openDetailByIndex(nextIndex, scope);
+  resetImageZoomView();
+  syncZoomImageFromDetail();
 }
 
 function handleImageZoomWheel(event) {
   if (!imageZoomModal || imageZoomModal.hidden) return;
   event.preventDefault();
-  const factor = Math.exp(-event.deltaY * 0.0015);
+
+  const isHorizontalPan =
+    imageZoomScale > 1 &&
+    !event.ctrlKey &&
+    Math.abs(event.deltaX) > Math.abs(event.deltaY) * 0.35;
+  if (isHorizontalPan) {
+    imageZoomPanX -= event.deltaX * 1.5;
+    imageZoomPanY -= event.deltaY * 1.5;
+    updateImageZoom();
+    return;
+  }
+
+  const sensitivity = event.ctrlKey ? 0.012 : 0.0032;
+  const factor = Math.exp(-event.deltaY * sensitivity);
   imageZoomScale = Math.min(6, Math.max(0.5, imageZoomScale * factor));
+  updateImageZoom();
+}
+
+function startImageZoomDrag(event) {
+  if (!imageZoomImage || imageZoomScale <= 1) return;
+  event.preventDefault();
+  event.stopPropagation();
+  imageZoomDragging = true;
+  imageZoomPointerX = event.clientX;
+  imageZoomPointerY = event.clientY;
+  imageZoomImage.classList.add('is-dragging');
+  imageZoomImage.setPointerCapture?.(event.pointerId);
+  updateImageZoom();
+}
+
+function moveImageZoomDrag(event) {
+  if (!imageZoomDragging) return;
+  event.preventDefault();
+  imageZoomPanX += event.clientX - imageZoomPointerX;
+  imageZoomPanY += event.clientY - imageZoomPointerY;
+  imageZoomPointerX = event.clientX;
+  imageZoomPointerY = event.clientY;
+  updateImageZoom();
+}
+
+function endImageZoomDrag(event) {
+  if (!imageZoomDragging) return;
+  imageZoomDragging = false;
+  imageZoomImage?.classList.remove('is-dragging');
+  imageZoomImage?.releasePointerCapture?.(event.pointerId);
   updateImageZoom();
 }
 
@@ -1488,13 +1574,58 @@ function closeDetail() {
 function moveDetail(step) {
   if (detailModal.hidden) return;
   const nextIndex = detailCursor + step;
-  openDetailByIndex(nextIndex);
+  openDetailByIndex(nextIndex, detailScope);
 }
 
 function getCurrentDetailItem() {
   const visible = detailScope === 'trash' ? trashItems : getVisibleResults();
   if (detailCursor < 0 || detailCursor >= visible.length) return null;
   return visible[detailCursor];
+}
+
+function hashPromptText(value) {
+  let hash = 2166136261;
+  for (const char of String(value || '')) {
+    hash ^= char.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createPromptBasedImageName(prompt) {
+  const text = String(prompt || '').trim();
+  const lower = text.toLowerCase();
+  const themes = [
+    [/portrait|person|face|headshot|人物|人像|肖像|面孔|头像/, 'Portrait'],
+    [/fashion|outfit|clothing|garment|服装|时装|穿搭|衣服/, 'Atelier'],
+    [/city|street|urban|building|城市|街道|都市|建筑/, 'City'],
+    [/space|planet|cosmic|galaxy|星球|宇宙|太空|银河/, 'Cosmos'],
+    [/ocean|sea|beach|wave|海洋|大海|海滩|浪/, 'Tide'],
+    [/mountain|valley|forest|nature|山|山谷|森林|自然/, 'Wilds'],
+    [/flower|garden|植物|花|花园/, 'Garden'],
+    [/robot|android|future|futuristic|机器人|未来|科幻/, 'Future'],
+    [/car|vehicle|train|aircraft|汽车|车辆|火车|飞机/, 'Voyage'],
+    [/night|moon|dark|夜|月亮|黑暗/, 'Midnight'],
+    [/sun|sunset|sunrise|golden hour|太阳|日落|日出|黄昏/, 'Sunlight'],
+    [/food|drink|餐厅|食物|饮料|美食/, 'Feast'],
+    [/dream|surreal|fantasy|梦|超现实|幻想|奇幻/, 'Dream'],
+  ];
+  const themedSubject = themes.find(([pattern]) => pattern.test(lower))?.[1];
+  const stopWords = new Set([
+    'the', 'and', 'with', 'from', 'into', 'this', 'that', 'image', 'photo', 'photograph',
+    'picture', 'make', 'create', 'generate', 'style', 'using', 'based', 'very', 'more', 'like',
+    'high', 'quality', 'detailed', 'realistic', 'cinematic', 'beautiful', 'scene', 'view', 'background',
+  ]);
+  const words = (lower.match(/[a-z][a-z0-9-]{2,}/g) || [])
+    .filter((word) => !stopWords.has(word));
+  const rawSubject = themedSubject || words[0] || 'Vision';
+  const subject = rawSubject.charAt(0).toUpperCase() + rawSubject.slice(1).toLowerCase();
+  const adjectives = [
+    'Electric', 'Golden', 'Lunar', 'Velvet', 'Radiant', 'Secret', 'Neon', 'Wild',
+    'Silver', 'Crimson', 'Dreamy', 'Midnight', 'Bright', 'Wandering', 'Blue', 'Infinite',
+  ];
+  const adjective = adjectives[hashPromptText(text) % adjectives.length];
+  return `${adjective}-${subject}`;
 }
 
 function downloadCurrentDetailImage() {
@@ -1509,8 +1640,8 @@ function downloadCurrentDetailImage() {
 
   const sourceExtension = imageSrc.match(/\.(png|jpe?g|webp)(?:[?#]|$)/i)?.[1]?.toLowerCase();
   const extension = sourceExtension === 'jpeg' ? 'jpg' : sourceExtension || 'png';
-  const safeModel = String(record.model || 'image').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '');
-  const filename = `photo-foundry-${safeModel || 'image'}-${record.id || Date.now()}.${extension}`;
+  const vividName = createPromptBasedImageName(record.prompt);
+  const filename = `${vividName}.${extension}`;
   const link = document.createElement('a');
   link.href = imageSrc;
   link.download = filename;
@@ -3224,6 +3355,15 @@ if (detailImage) {
 }
 if (imageZoomImage) {
   imageZoomImage.addEventListener('click', (event) => event.stopPropagation());
+  imageZoomImage.addEventListener('pointerdown', startImageZoomDrag);
+  imageZoomImage.addEventListener('pointermove', moveImageZoomDrag);
+  imageZoomImage.addEventListener('pointerup', endImageZoomDrag);
+  imageZoomImage.addEventListener('pointercancel', endImageZoomDrag);
+  imageZoomImage.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    resetImageZoomView();
+  });
 }
 if (imageZoomModal) {
   imageZoomModal.addEventListener('click', closeImageZoom);
@@ -3306,9 +3446,21 @@ if (detailDelete) {
   });
 }
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && imageZoomModal && !imageZoomModal.hidden) {
-    closeImageZoom();
-    return;
+  if (imageZoomModal && !imageZoomModal.hidden) {
+    if (event.key === 'Escape') {
+      closeImageZoom();
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      moveImageZoom(-1);
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      moveImageZoom(1);
+      return;
+    }
   }
   if (event.key === 'Escape' && trashModal && !trashModal.hidden) {
     closeTrashModal();

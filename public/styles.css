@@ -1661,10 +1661,16 @@ textarea.drop-active {
   pointer-events: auto;
   user-select: none;
   -webkit-user-drag: none;
-  transform: scale(var(--image-zoom-scale, 1));
+  transform: translate3d(var(--image-zoom-pan-x, 0px), var(--image-zoom-pan-y, 0px), 0) scale(var(--image-zoom-scale, 1));
   transform-origin: center;
-  transition: transform 80ms ease-out;
+  touch-action: none;
+  transition: transform 55ms ease-out;
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+}
+
+.image-zoom-stage img.is-dragging {
+  cursor: grabbing !important;
+  transition: none;
 }
 
 .image-zoom-level {
