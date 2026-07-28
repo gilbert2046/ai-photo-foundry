@@ -153,7 +153,10 @@ const IMAGE_SIZE_OPTIONS_BY_MODEL = {
     { label: '1024×1536', value: '1024x1536' },
   ],
 };
-const DEFAULT_MODEL_ID = 'gemini-3.1-flash-image-preview';
+const DEFAULT_MODEL_ID = 'gpt-image-2';
+const DEFAULT_CLARITY_BY_MODEL = {
+  'gpt-image-2': 'medium',
+};
 const DEFAULT_IMAGE_SIZE_BY_MODEL = {
   'gemini-2.5-flash-image': '1K',
   'gemini-3-pro-image-preview': '1K',
@@ -359,7 +362,10 @@ promptInput.value = draft.prompt || '';
 const initialModel = getSafeModelId(draft.model || DEFAULT_MODEL_ID);
 modelSelect.value = initialModel;
 aspectRatioSelect.value = draft.aspectRatio || '1:1';
-claritySelect.value = draft.clarity || '';
+claritySelect.value =
+  typeof draft.clarity === 'string'
+    ? draft.clarity
+    : DEFAULT_CLARITY_BY_MODEL[initialModel] || '';
 modelOverride.value = normalizeModelId(draft.modelOverride || '');
 updateImageSizeOptions(draft.imageSize || DEFAULT_IMAGE_SIZE_BY_MODEL[initialModel] || '1K');
 updateModelSpecificControls();
@@ -2930,6 +2936,7 @@ async function generate() {
   if (!modelSelect.value || !hasModelOption(modelSelect.value)) {
     modelSelect.value = DEFAULT_MODEL_ID;
     modelOverride.value = '';
+    claritySelect.value = DEFAULT_CLARITY_BY_MODEL[DEFAULT_MODEL_ID] || '';
     updateImageSizeOptions(DEFAULT_IMAGE_SIZE_BY_MODEL[DEFAULT_MODEL_ID] || '1K');
     updateModelSpecificControls();
     saveDraft();
