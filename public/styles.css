@@ -882,6 +882,26 @@ textarea {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
+.generation-estimate {
+  display: flex;
+  align-items: center;
+  min-height: 27px;
+  padding: 5px 9px;
+  border: 1px solid rgba(140, 199, 255, 0.22);
+  border-radius: 9px;
+  background: rgba(9, 18, 31, 0.58);
+  color: #b9d8f8;
+  font-family: 'Manrope', 'Satoshi', sans-serif;
+  font-size: 0.71rem;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+}
+
+.generation-estimate strong {
+  color: #f3f8ff;
+  font-weight: 700;
+}
+
 textarea.drop-active {
   border-color: rgba(140, 199, 255, 0.9);
   background: rgba(41, 72, 120, 0.35);
@@ -1216,14 +1236,23 @@ textarea.drop-active {
   position: sticky;
   top: 8px;
   z-index: 20;
+  overflow: hidden;
 }
 
 .project-bar-inner {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   padding: 8px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  cursor: grab;
+  user-select: none;
+  touch-action: pan-x pan-y;
   border: 1px solid rgba(157, 177, 210, 0.18);
   background: rgba(8, 13, 22, 0.52);
   backdrop-filter: blur(18px);
@@ -1231,12 +1260,21 @@ textarea.drop-active {
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
 }
 
+.project-bar-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.project-bar-inner.is-dragging {
+  cursor: grabbing;
+}
+
 .project-tools {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-left: 6px;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 
 .project-chip,
@@ -1254,7 +1292,14 @@ textarea.drop-active {
   cursor: pointer;
   font-family: 'Manrope', 'Satoshi', sans-serif;
   font-size: 0.8rem;
+  flex: 0 0 auto;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.project-bar-inner.is-dragging .project-chip,
+.project-bar-inner.is-dragging .project-create,
+.project-bar-inner.is-dragging .project-tool {
+  cursor: grabbing;
 }
 
 .project-chip-icon,

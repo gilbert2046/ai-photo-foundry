@@ -10,10 +10,10 @@
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <img class="logo" src="/photo-foundry-logo.png" alt="Photo Foundry logo" />
+          <img class="logo" src="/malihong-logo.png" alt="Photo Foundry logo" />
           <div>
             <div id="brandTitle" class="title editable-title" contenteditable="plaintext-only" role="textbox" aria-label="Product name" title="Click to rename" spellcheck="false">Photo Foundry</div>
-            <div class="subtitle">A private multi-model image workspace</div>
+            <div class="subtitle">Mengran's very private foundry</div>
           </div>
         </div>
         <div class="top-actions">
@@ -121,6 +121,7 @@
           <div class="field wide">
             <label for="prompt">Prompt</label>
             <textarea id="prompt" rows="4" placeholder="Describe the scene you want..."></textarea>
+            <div id="generationEstimate" class="generation-estimate" aria-live="polite"></div>
           </div>
 
           <div class="field wide">
@@ -246,6 +247,6 @@
       </div>
     </div>
 
-    <script src="/app.js?v=20260728-gpt2-flexible-sizes"></script>
+    <script src="/app.js?v=20260728-live-price-estimate"></script>
   </body>
 </html>

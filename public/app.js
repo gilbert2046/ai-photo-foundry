@@ -7,6 +7,7 @@ const modelOverride = document.getElementById('modelOverride');
 const apiKeyInput = document.getElementById('apiKey');
 const openAiKeyInput = document.getElementById('openAiKey');
 const promptInput = document.getElementById('prompt');
+const generationEstimate = document.getElementById('generationEstimate');
 const promptField = promptInput?.closest('.field.wide');
 const imageInput = document.getElementById('imagePrompt');
 const imagePreview = document.getElementById('imagePreview');
@@ -124,17 +125,15 @@ const IMAGE_OUTPUT_PRICING = {
     default: 0.067,
   },
   'gpt-image-2': {
-    low: 0.017687,
-    medium: 0.054107,
-    high: 0.177587,
-    default: 0.054107,
+    low: 0.006,
+    medium: 0.053,
+    high: 0.211,
+    default: 0.053,
   },
 };
 const IMAGE_SIZE_OPTIONS_BY_MODEL = {
   'gemini-2.5-flash-image': [
     { label: '1K', value: '1K' },
-    { label: '2K', value: '2K' },
-    { label: '4K', value: '4K' },
   ],
   'gemini-3-pro-image-preview': [
     { label: '1K', value: '1K' },
@@ -160,6 +159,46 @@ const IMAGE_SIZE_OPTIONS_BY_MODEL = {
     { label: '4K Wide · 3840×2160', value: '3840x2160' },
     { label: '4K Tall · 2160×3840', value: '2160x3840' },
   ],
+};
+const STANDARD_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
+const ASPECT_RATIO_OPTIONS_BY_MODEL = {
+  'gemini-2.5-flash-image': STANDARD_ASPECT_RATIOS,
+  'gemini-3-pro-image-preview': STANDARD_ASPECT_RATIOS,
+  'gemini-3.1-flash-image-preview': [
+    ...STANDARD_ASPECT_RATIOS,
+    '1:4',
+    '4:1',
+    '1:8',
+    '8:1',
+  ],
+  'gpt-image-2': STANDARD_ASPECT_RATIOS,
+};
+const GOOGLE_OUTPUT_ESTIMATES = {
+  'gemini-2.5-flash-image': {
+    '1K': { tokens: 1290, cost: 0.039 },
+  },
+  'gemini-3-pro-image-preview': {
+    '1K': { tokens: 1117, cost: 0.134 },
+    '2K': { tokens: 1117, cost: 0.134 },
+    '4K': { tokens: 2000, cost: 0.24 },
+  },
+  'gemini-3.1-flash-image-preview': {
+    '0.5K': { tokens: 750, cost: 0.045 },
+    '1K': { tokens: 1117, cost: 0.067 },
+    '2K': { tokens: 1683, cost: 0.101 },
+    '4K': { tokens: 2517, cost: 0.151 },
+  },
+};
+const TEXT_INPUT_PRICE_PER_MILLION = {
+  'gemini-2.5-flash-image': 0.3,
+  'gemini-3-pro-image-preview': 2,
+  'gemini-3.1-flash-image-preview': 0.5,
+  'gpt-image-2': 5,
+};
+const GPT_IMAGE_2_COMMON_OUTPUT = {
+  low: { square: 0.006, portrait: 0.005, landscape: 0.005 },
+  medium: { square: 0.053, portrait: 0.041, landscape: 0.041 },
+  high: { square: 0.211, portrait: 0.165, landscape: 0.165 },
 };
 const DEFAULT_MODEL_ID = 'gpt-image-2';
 const DEFAULT_CLARITY_BY_MODEL = {
@@ -318,6 +357,94 @@ function getImageSizeLabel(value) {
   return value || '';
 }
 
+function updateAspectRatioOptions(modelId, preferredValue = aspectRatioSelect.value) {
+  if (!aspectRatioSelect) return;
+  const ratios = ASPECT_RATIO_OPTIONS_BY_MODEL[modelId] || STANDARD_ASPECT_RATIOS;
+  aspectRatioSelect.innerHTML = '';
+  for (const ratio of ratios) {
+    const option = document.createElement('option');
+    option.value = ratio;
+    option.textContent = ratio;
+    aspectRatioSelect.appendChild(option);
+  }
+  aspectRatioSelect.value = ratios.includes(preferredValue) ? preferredValue : '1:1';
+}
+
+function getGeminiSizeTier(imageSize) {
+  if (imageSize === '512') return '0.5K';
+  if (imageSize === '2K' || imageSize === '4K') return imageSize;
+  return '1K';
+}
+
+function estimateGptImage2Output(imageSize, clarity) {
+  const quality = ['low', 'medium', 'high'].includes(clarity) ? clarity : 'medium';
+  const match = /^(\d+)x(\d+)$/.exec(imageSize || '');
+  const width = Number(match?.[1] || 1024);
+  const height = Number(match?.[2] || 1024);
+  const shape = width === height ? 'square' : width > height ? 'landscape' : 'portrait';
+  const commonCost = GPT_IMAGE_2_COMMON_OUTPUT[quality][shape];
+  const isCommon =
+    (width === 1024 && height === 1024) ||
+    (width === 1536 && height === 1024) ||
+    (width === 1024 && height === 1536);
+  const basePixels = shape === 'square' ? 1024 * 1024 : 1536 * 1024;
+  const scale = isCommon ? 1 : (width * height) / basePixels;
+  const cost = commonCost * scale;
+  return {
+    cost,
+    tokens: Math.round((cost / 30) * 1_000_000),
+    approximate: !isCommon,
+    quality,
+  };
+}
+
+function getCurrentGenerationEstimate() {
+  const modelId = getActiveModelId();
+  const imageSize = imageSizeSelect.value || DEFAULT_IMAGE_SIZE_BY_MODEL[modelId] || '';
+  const promptTokens = Math.max(0, Math.ceil((promptInput.value || '').trim().length / 4));
+  const textInputCost = (promptTokens * (TEXT_INPUT_PRICE_PER_MILLION[modelId] || 0)) / 1_000_000;
+
+  if (isOpenAiModel(modelId)) {
+    const output = estimateGptImage2Output(imageSize, claritySelect.value);
+    return {
+      modelId,
+      imageSize,
+      outputTokens: output.tokens,
+      outputCost: output.cost,
+      total: output.cost + textInputCost,
+      approximate: output.approximate,
+      detail: `${output.quality[0].toUpperCase()}${output.quality.slice(1)}`,
+      hasReferenceInput: promptImages.length > 0,
+    };
+  }
+
+  const tier = getGeminiSizeTier(imageSize);
+  const output = GOOGLE_OUTPUT_ESTIMATES[modelId]?.[tier] || { tokens: 0, cost: 0 };
+  return {
+    modelId,
+    imageSize: tier,
+    outputTokens: output.tokens,
+    outputCost: output.cost,
+    total: output.cost + textInputCost,
+    approximate: false,
+    detail: '',
+    hasReferenceInput: promptImages.length > 0,
+  };
+}
+
+function updateGenerationEstimate() {
+  if (!generationEstimate) return;
+  const estimate = getCurrentGenerationEstimate();
+  const modelLabel = MODEL_BILLING[estimate.modelId]?.label || estimate.modelId;
+  const qualifier = estimate.approximate ? 'scaled estimate' : 'official output rate';
+  const refs = estimate.hasReferenceInput ? ' · reference-image input billed separately' : '';
+  generationEstimate.innerHTML =
+    `<strong>Est. ≈ ${formatMoney(estimate.total)}</strong>` +
+    ` · ~${estimate.outputTokens.toLocaleString()} output tokens` +
+    ` · ${modelLabel}${estimate.detail ? ` · ${estimate.detail}` : ''} · ${getImageSizeLabel(estimate.imageSize)}` +
+    ` · ${qualifier}${refs}`;
+}
+
 function updateImageSizeOptions(preferredValue = imageSizeSelect.value) {
   const modelId = getActiveModelId();
   const options =
@@ -339,6 +466,7 @@ function updateImageSizeOptions(preferredValue = imageSizeSelect.value) {
 function updateModelSpecificControls() {
   const modelId = getActiveModelId();
   const isOpenAi = isOpenAiModel(modelId);
+  updateAspectRatioOptions(modelId, aspectRatioSelect?.value || '1:1');
   if (clarityLabel) {
     clarityLabel.textContent = isOpenAi ? 'Quality' : 'Clarity';
   }
@@ -358,6 +486,7 @@ function updateModelSpecificControls() {
       }
     }
   }
+  updateGenerationEstimate();
 }
 
 function renderDetailInfoRows(rows) {
@@ -909,6 +1038,13 @@ function makeUsageEntry({
     height,
     clarity,
   });
+  const estimatedCost =
+    normalizedModel === 'gpt-image-2'
+      ? estimateGptImage2Output(
+          imageSize || (width && height ? `${width}x${height}` : '1024x1024'),
+          clarity
+        ).cost * Math.max(1, Number(count || 1))
+      : estimateImageOutputCost({ modelId: normalizedModel, imageTier, count });
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     createdAt: createdAt || new Date().toISOString(),
@@ -917,7 +1053,7 @@ function makeUsageEntry({
     imageTier,
     cost:
       cost == null
-        ? estimateImageOutputCost({ modelId: normalizedModel, imageTier, count })
+        ? estimatedCost
         : Number(cost || 0),
     source,
     tokens: {
@@ -1180,7 +1316,7 @@ function renderUsageModal() {
       <div class="usage-month-list">${monthlyRows}</div>
     </div>
     <div class="usage-footnote">
-      Gemini pricing follows the Gemini Developer API image-output rates already in the app. GPT Image 2 uses your provided estimate table: low $0.017687, medium $0.054107, high $0.177587 per successful image.
+      Gemini estimates use current Gemini Developer API standard image-output rates. GPT Image 2 common sizes use current OpenAI output rates; flexible 2K/4K sizes are proportional estimates. Prompt text is estimated, while reference-image input is billed separately.
     </div>
   `;
 }
@@ -2131,6 +2267,76 @@ function createProjectChip({ id, name, count, active, kind = 'project' }) {
   return button;
 }
 
+function enableHorizontalDragScroll(scroller) {
+  let pointerId = null;
+  let startX = 0;
+  let startScrollLeft = 0;
+  let hasDragged = false;
+  let suppressClick = false;
+  const dragThreshold = 5;
+
+  scroller.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'touch' || event.button !== 0) return;
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startScrollLeft = scroller.scrollLeft;
+    hasDragged = false;
+  });
+
+  scroller.addEventListener('pointermove', (event) => {
+    if (event.pointerId !== pointerId) return;
+    const distance = event.clientX - startX;
+
+    if (!hasDragged && Math.abs(distance) >= dragThreshold) {
+      hasDragged = true;
+      scroller.classList.add('is-dragging');
+      scroller.setPointerCapture(event.pointerId);
+    }
+
+    if (!hasDragged) return;
+    event.preventDefault();
+    scroller.scrollLeft = startScrollLeft - distance;
+  });
+
+  const finishDrag = (event) => {
+    if (event.pointerId !== pointerId) return;
+    if (hasDragged) {
+      suppressClick = true;
+      window.setTimeout(() => {
+        suppressClick = false;
+      }, 0);
+    }
+    if (scroller.hasPointerCapture(event.pointerId)) {
+      scroller.releasePointerCapture(event.pointerId);
+    }
+    scroller.classList.remove('is-dragging');
+    pointerId = null;
+    hasDragged = false;
+  };
+
+  scroller.addEventListener('pointerup', finishDrag);
+  scroller.addEventListener('pointercancel', finishDrag);
+  scroller.addEventListener('lostpointercapture', () => {
+    scroller.classList.remove('is-dragging');
+    pointerId = null;
+    hasDragged = false;
+  });
+
+  scroller.addEventListener(
+    'click',
+    (event) => {
+      if (!suppressClick) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    true
+  );
+
+  scroller.addEventListener('dragstart', (event) => {
+    event.preventDefault();
+  });
+}
+
 function renderProjects() {
   if (!projectBar) return;
   const counts = new Map(projectState.projects.map((project) => [project.id, 0]));
@@ -2143,6 +2349,7 @@ function renderProjects() {
   projectBar.innerHTML = '';
   const inner = document.createElement('div');
   inner.className = 'project-bar-inner';
+  enableHorizontalDragScroll(inner);
 
   inner.appendChild(
     createProjectChip({
@@ -2504,6 +2711,7 @@ function renderSelected() {
     selectedList.innerHTML = '<div class="status">No selected images.</div>';
     imagePreview.textContent = 'No image selected';
     saveDraft();
+    updateGenerationEstimate();
     return;
   }
 
@@ -2658,6 +2866,7 @@ function renderSelected() {
     renderSelected();
     render();
   };
+  updateGenerationEstimate();
 }
 
 function loadImageElement(src) {
@@ -2894,7 +3103,10 @@ apiKeyInput.addEventListener('input', () => {
 openAiKeyInput.addEventListener('input', () => {
   localStorage.setItem(OPENAI_API_KEY_STORAGE, openAiKeyInput.value.trim());
 });
-promptInput.addEventListener('input', saveDraft);
+promptInput.addEventListener('input', () => {
+  saveDraft();
+  updateGenerationEstimate();
+});
 modelSelect.addEventListener('change', () => {
   modelOverride.value = '';
   modelSelect.value = getSafeModelId(modelSelect.value);
@@ -2905,13 +3117,21 @@ modelSelect.addEventListener('change', () => {
 imageSizeSelect.addEventListener('change', () => {
   updateModelSpecificControls();
   saveDraft();
+  updateGenerationEstimate();
 });
-aspectRatioSelect.addEventListener('change', saveDraft);
-claritySelect.addEventListener('change', saveDraft);
+aspectRatioSelect.addEventListener('change', () => {
+  saveDraft();
+  updateGenerationEstimate();
+});
+claritySelect.addEventListener('change', () => {
+  saveDraft();
+  updateGenerationEstimate();
+});
 modelOverride.addEventListener('input', () => {
   updateImageSizeOptions(imageSizeSelect.value);
   updateModelSpecificControls();
   saveDraft();
+  updateGenerationEstimate();
 });
 
 likedOnlyToggle.addEventListener('change', render);

@@ -11,19 +11,19 @@ import OpenAI, { toFile } from 'openai';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, 'public');
-const storageDir = process.env.PHOTO_FOUNDRY_DATA_DIR
-  ? path.resolve(process.env.PHOTO_FOUNDRY_DATA_DIR)
+const storageDir = process.env.MALIHONG_DATA_DIR
+  ? path.resolve(process.env.MALIHONG_DATA_DIR)
   : path.join(__dirname, 'storage');
 const imagesDir = path.join(storageDir, 'images');
 const fallbackTrashDir = path.join(storageDir, 'trash');
 const metadataPath = path.join(storageDir, 'results.json');
 const trashMetadataPath = path.join(storageDir, 'trash.json');
-const sharedSettingsDir = path.join(os.homedir(), '.photo-foundry');
+const sharedSettingsDir = path.join(os.homedir(), '.malihong');
 const projectMetadataPath = path.join(sharedSettingsDir, 'projects.json');
 const usageMetadataPath = path.join(sharedSettingsDir, 'usage.json');
 
 const envCandidates = [
-  process.env.PHOTO_FOUNDRY_ENV_FILE,
+  process.env.MALIHONG_ENV_FILE,
   path.resolve(process.cwd(), '.env'),
   path.resolve(__dirname, '.env'),
   path.resolve(__dirname, '..', '.env'),
@@ -1180,7 +1180,7 @@ export const serverReady = ensureStorage().then(
         const address = server.address();
         const port = typeof address === 'object' && address ? address.port : PORT;
         // eslint-disable-next-line no-console
-        console.log(`Photo Foundry running on http://127.0.0.1:${port}`);
+        console.log(`malihong running on http://127.0.0.1:${port}`);
         resolve({ server, port });
       });
     }),
@@ -1188,7 +1188,7 @@ export const serverReady = ensureStorage().then(
 
 serverReady.catch((err) => {
   // eslint-disable-next-line no-console
-  console.error('Failed to initialize Photo Foundry storage', err);
+  console.error('Failed to initialize malihong storage', err);
   process.exitCode = 1;
 });
 
