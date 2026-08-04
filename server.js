@@ -15,6 +15,7 @@ const storageDir = process.env.MALIHONG_DATA_DIR
   ? path.resolve(process.env.MALIHONG_DATA_DIR)
   : path.join(__dirname, 'storage');
 const imagesDir = path.join(storageDir, 'images');
+const referencesDir = path.join(storageDir, 'references');
 const fallbackTrashDir = path.join(storageDir, 'trash');
 const metadataPath = path.join(storageDir, 'results.json');
 const trashMetadataPath = path.join(storageDir, 'trash.json');
@@ -110,13 +111,17 @@ function sanitizeUsageState(input) {
 
 async function ensureStorage() {
   await mkdir(imagesDir, { recursive: true });
+  await mkdir(referencesDir, { recursive: true });
   await mkdir(fallbackTrashDir, { recursive: true });
   await mkdir(sharedSettingsDir, { recursive: true });
   try {
     const raw = await readFile(metadataPath, 'utf8');
     const parsed = JSON.parse(raw);
     persistedResults = Array.isArray(parsed) ? parsed : [];
-  } catch {
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw new Error(`Could not load results index safely: ${error?.message || error}`);
+    }
     persistedResults = [];
     await writeFile(metadataPath, JSON.stringify(persistedResults, null, 2), 'utf8');
   }
@@ -124,7 +129,10 @@ async function ensureStorage() {
     const raw = await readFile(trashMetadataPath, 'utf8');
     const parsed = JSON.parse(raw);
     trashedResults = Array.isArray(parsed) ? parsed : [];
-  } catch {
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw new Error(`Could not load trash index safely: ${error?.message || error}`);
+    }
     trashedResults = [];
     await writeFile(trashMetadataPath, JSON.stringify(trashedResults, null, 2), 'utf8');
   }
@@ -143,10 +151,20 @@ async function ensureStorage() {
 }
 
 async function persistResultsFile() {
+  for (const entry of persistedResults) {
+    if (entry?.fileName) delete entry.imageBase64;
+    if (Array.isArray(entry?.promptReferenceImages)) {
+      entry.promptReferenceImages = await persistPromptReferenceImages(entry.id, entry.promptReferenceImages);
+    }
+  }
   await writeFile(metadataPath, JSON.stringify(persistedResults, null, 2), 'utf8');
 }
 
 async function persistTrashFile() {
+  for (const entry of trashedResults) {
+    if (entry?.trashLocation) delete entry.imageBase64;
+    if (entry?.original?.fileName) delete entry.original.imageBase64;
+  }
   await writeFile(trashMetadataPath, JSON.stringify(trashedResults, null, 2), 'utf8');
 }
 
@@ -177,28 +195,64 @@ function mimeToExt(mimeType) {
   }
 }
 
+async function persistPromptReferenceImages(resultId, references) {
+  if (!Array.isArray(references) || references.length === 0) return [];
+  const resultDir = path.join(referencesDir, String(resultId));
+  await mkdir(resultDir, { recursive: true });
+  const saved = [];
+  for (let index = 0; index < references.length; index += 1) {
+    const reference = references[index];
+    if (reference?.fileName && reference?.mimeType) {
+      saved.push({ fileName: path.basename(reference.fileName), mimeType: reference.mimeType });
+      continue;
+    }
+    if (!reference?.data || !reference?.mimeType) continue;
+    const fileName = `${index + 1}.${mimeToExt(reference.mimeType)}`;
+    await writeFile(path.join(resultDir, fileName), Buffer.from(reference.data, 'base64'));
+    saved.push({ fileName, mimeType: reference.mimeType });
+  }
+  return saved;
+}
+
+async function loadPromptReferenceImages(entry) {
+  const references = Array.isArray(entry?.promptReferenceImages) ? entry.promptReferenceImages : [];
+  const loaded = [];
+  for (const reference of references) {
+    if (reference?.data && reference?.mimeType) {
+      loaded.push({ mimeType: reference.mimeType, dataUrl: `data:${reference.mimeType};base64,${reference.data}` });
+      continue;
+    }
+    if (!reference?.fileName || !reference?.mimeType) continue;
+    try {
+      const bytes = await readFile(path.join(referencesDir, String(entry.id), path.basename(reference.fileName)));
+      loaded.push({ mimeType: reference.mimeType, dataUrl: `data:${reference.mimeType};base64,${bytes.toString('base64')}` });
+    } catch {
+      // Keep the result usable even if one old reference file is unavailable.
+    }
+  }
+  return loaded;
+}
+
 function toPublicResult(entry, options = {}) {
-  const includePromptReferences = Boolean(options.includePromptReferences);
   const imageUrl = entry.fileName ? `/api/images/${entry.fileName}` : null;
   const imageDataUrl =
     entry.imageBase64 && entry.mimeType ? `data:${entry.mimeType};base64,${entry.imageBase64}` : null;
-  const promptReferenceImages = includePromptReferences && Array.isArray(entry.promptReferenceImages)
-    ? entry.promptReferenceImages
-        .filter((item) => item?.data && item?.mimeType)
-        .map((item) => ({
-          mimeType: item.mimeType,
-          dataUrl: `data:${item.mimeType};base64,${item.data}`,
-        }))
-    : [];
   const { imageBase64, promptReferenceImages: _promptReferenceImages, ...publicEntry } = entry;
   return {
     ...publicEntry,
     imageUrl,
     imageDataUrl: imageUrl ? null : imageDataUrl,
-    promptReferenceImages,
+    promptReferenceImages: [],
     promptReferenceImageCount: Array.isArray(entry.promptReferenceImages)
       ? entry.promptReferenceImages.length
       : 0,
+  };
+}
+
+async function toPublicResultWithReferences(entry) {
+  return {
+    ...toPublicResult(entry),
+    promptReferenceImages: await loadPromptReferenceImages(entry),
   };
 }
 
@@ -928,7 +982,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       sendJson(res, 200, {
-        result: toPublicResult(target, { includePromptReferences: true }),
+        result: await toPublicResultWithReferences(target),
       });
       return;
     }
@@ -943,11 +997,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url?.startsWith('/api/trash/') && req.url?.endsWith('/image')) {
       const id = decodeURIComponent(req.url.replace('/api/trash/', '').replace('/image', ''));
       const target = trashedResults.find((item) => item.id === id);
-      if (!target?.imageBase64) {
+      if (!target?.imageBase64 && !target?.trashLocation) {
         sendText(res, 404, 'Trash image not found');
         return;
       }
-      const buffer = Buffer.from(target.imageBase64, 'base64');
+      let buffer;
+      try {
+        buffer = target.imageBase64
+          ? Buffer.from(target.imageBase64, 'base64')
+          : await readFile(target.trashLocation);
+      } catch {
+        sendText(res, 404, 'Trash image not found');
+        return;
+      }
       res.writeHead(200, {
         'Content-Type': target.mimeType || 'image/png',
         'Content-Length': buffer.length,
@@ -968,15 +1030,8 @@ const server = http.createServer(async (req, res) => {
       const originalProjectId = typeof originalProjectIdHeader === 'string' && originalProjectIdHeader.trim() ? originalProjectIdHeader.trim() : 'all';
       const [target] = persistedResults.splice(idx, 1);
       let trashResult = { moved: false, location: null };
-      let imageBase64 = target.imageBase64 || null;
       if (target.fileName) {
         const imagePath = path.join(imagesDir, target.fileName);
-        try {
-          const imageBuffer = await readFile(imagePath);
-          imageBase64 = imageBuffer.toString('base64');
-        } catch {
-          // keep whatever metadata already has
-        }
         trashResult = await moveToTrash(imagePath, target.fileName);
       }
       await persistResultsFile();
@@ -986,7 +1041,7 @@ const server = http.createServer(async (req, res) => {
         trashLocation: trashResult.location,
         fileName: target.fileName || null,
         mimeType: target.mimeType || 'image/png',
-        imageBase64,
+        imageBase64: trashResult.location ? null : target.imageBase64 || null,
         originalProjectId,
         original: target,
       });
@@ -1011,23 +1066,31 @@ const server = http.createServer(async (req, res) => {
       let restored = {
         ...original,
       };
-      if (target.imageBase64) {
+      if (target.imageBase64 || target.trashLocation) {
         const fileName =
           original.fileName || `${original.id || `${Date.now()}-${crypto.randomUUID()}`}.${mimeToExt(target.mimeType)}`;
         const filePath = path.join(imagesDir, fileName);
-        await writeFile(filePath, Buffer.from(target.imageBase64, 'base64'));
+        if (target.imageBase64) {
+          await writeFile(filePath, Buffer.from(target.imageBase64, 'base64'));
+        } else {
+          try {
+            await rename(target.trashLocation, filePath);
+          } catch {
+            await copyFile(target.trashLocation, filePath);
+            await unlink(target.trashLocation).catch(() => {});
+          }
+        }
         restored = {
           ...restored,
           fileName,
           mimeType: target.mimeType || original.mimeType || 'image/png',
-          imageBase64: target.imageBase64,
         };
       }
       persistedResults.push(restored);
       persistedResults.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       await persistResultsFile();
       await persistTrashFile();
-      if (target.trashLocation) {
+      if (target.trashLocation && target.imageBase64) {
         await removeTrashedFile(target.trashLocation);
       }
       sendJson(res, 200, {
